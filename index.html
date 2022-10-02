@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Include the CesiumJS JavaScript and CSS files -->
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.97/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.97/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <link href="//db.onlinewebfonts.com/c/175929511a4ecce394c9afe333eb946d?family=Nasa" rel="stylesheet" type="text/css"/>                                
+</head>
+<style>
+#cesiumContainer {
+    width: 100%;
+    height: 97vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.toolbar-left {
+    display: block;
+    position: absolute;
+    top: 50px;
+    left: 50px;
+    background: rgba(11, 61, 145, .5);
+    border: 5px solid white;
+    padding: 10px;
+    border-radius: 5px;
+}
+.toolbar-right {
+    display: block;
+    position: absolute;
+    top: 50px;
+    right: 50px;
+    background: rgba(11, 61, 145, .5);
+    border: 5px solid white;
+    padding: 10px;
+    border-radius: 5px;
+}
+.toolbar-bottom-left {
+    display: block;
+    position: absolute;
+    bottom: 150px;
+    left: 50px;
+    background: rgba(11, 61, 145, .5);
+    border: 5px solid white;
+    padding: 10px;
+    border-radius: 5px;
+}
+.toolbar-bottom-right {
+    display: block;
+    position: absolute;
+    bottom: 60px;
+    right: 25px;
+    background: rgba(11, 61, 145, .5);
+    border: 5px solid white;
+    padding: 10px;
+    border-radius: 5px;
+}
+h4 {
+    color: white;
+    margin: 10px;
+    /*font-family: 'Nasa', sans-serif;*/
+}
+.smallh4 {
+    color: white;
+    margin: 5px;
+    font-size: .85em;
+    /*font-family: 'Nasa', sans-serif;*/
+}
+.NasaBlue {
+    background: #0b3d91;
+}
+</style>
+<body>                
+  <div id="cesiumContainer"></div>
+    <div class="toolbar-left">
+        <h4>The ISS (ZARYA) is current orbiting: <span id="Country"></span></h4>
+        <h4>Lat/Lon: <span id="LatLon"></span></h4>
+        <!--<button onclick="CupolaView()">Cupola View</button>-->
+        <button style="margin-left: 10px !important; margin-bottom: 10px;" onclick="ToggleDateTime()">Toggle Timezone/UTC</button>      
+    </div>
+    <div class="toolbar-right">
+        <h4 class="smallh4">
+            Station Crew
+            <ul>
+                <li>Samantha Cristoforetti</li>
+                <li>Kjell Lindgren</li>
+                <li>Robert Hines</li>
+                <li>Jessica Watkins</li>
+                <li>Frank Rubio <i>(Roscosmos Cosmonaut)</i></li>
+                <li>Sergey Prokopyev <i>(Roscosmos Cosmonaut)</i></li>
+                <li>Dmitri Petelin <i>(Roscosmos Cosmonaut)</i></li>
+            </ul>
+            Next Mission
+            <b>Crew 5 (NASA/SpaceX)</b>
+            <i>10.5.2022</i>
+            <ul>
+                <li>Nicole Mann</li>
+                <li>Josh Cassada</li>
+                <li>Koichi Wakata <i>JAXA (Japan Aerospace Exploration Agency)</i></li>
+                <li>Anna Kikina <i>(Roscosmos Cosmonaut)</i></li>
+            </ul>
+        </h4>
+    </div>
+    <div class="toolbar-bottom-right">
+        <iframe src="https://isstracker.spaceflight.esa.int/" style="border: 0 none transparent; " id="iss-pos" width="550" height="275" frameborder="0" scrolling="no" allowfullscreen="" title="ESU ISS tracking map">ESA ISS tracking map</iframe>
+    </div>    
+    <div class="toolbar-bottom-left"> 
+        <iframe width="300" height="200" src="https://www.youtube.com/embed/21X5lGlDOfg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
+    <!-- Luxon for handling timezones -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@1.25.0/build/global/luxon.min.js"></script>
+    <!-- satellite to handle Keplierian Elements Translations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>  
+  <script>
+    // Your access token can be found at: https://cesium.com/ion/tokens.
+    // Replace `your_access_token` with your Cesium ion access token.
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkZGNhMjQ2My05NzZiLTQ0ZGYtYjVhYi0yZmJmMTIwNzFiNTUiLCJpZCI6MTA5ODcyLCJpYXQiOjE2NjQ2NjgwMTN9.JLrXN8haeWKe3Ds494y2kawLmVfwgCvVYjGVYDHAd8k';
+
+    //var currentTime = Cesium.JulianDate.fromDate(new Date());
+    var currentTime = Cesium.JulianDate.fromDate(new Date());    
+    const start = Cesium.JulianDate.fromDate(new Date());
+
+    function GetCountryCode(position) {        
+        const xhttp = new XMLHttpRequest();
+        let lon = (position.longitude*57.2958).toFixed(6);
+        let lat = (position.latitude*57.2958).toFixed(6);
+        document.getElementById("LatLon").innerHTML = lat + "/" + lon;
+        let APIKEY = 'ff62749a7879a9c8d934a3fb7bac6041';
+        xhttp.open("GET", `http://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${APIKEY}`);
+        xhttp.send();
+        xhttp.onreadystatechange=(e)=>{
+            if (xhttp.readyState == 4 && xhttp.status == 200) {
+                let json = JSON.parse(xhttp.response);
+                if (xhttp.responseText.length == "2")
+                {
+                    document.getElementById("Country").innerHTML = "Over an Ocean";
+                }
+                else
+                {
+                    document.getElementById("Country").innerHTML = json[0].name + ", " + json[0].country;
+                }
+            }
+        }
+    }
+
+    // Not working?
+    function CalculateDistance(p1, p2) {
+        var R = 6371e3; // R is earth’s radius
+        var lat1 = p1.latitude; // starting point lat
+        var lat2 = p2.latitude;         // ending point lat
+        var lon1 = p1.longitude; // starting point lon
+        var lon2 = p2.longitude;         // ending point lon
+        var lat1radians = toRadians(lat1);
+        var lat2radians = toRadians(lat2);
+
+        var latRadians = toRadians(lat2-lat1);
+        var lonRadians = toRadians(lon2-lon1);
+
+        var a = Math.sin(latRadians/2) * Math.sin(latRadians/2) +
+                Math.cos(lat1radians) * Math.cos(lat2radians) *
+                Math.sin(lonRadians/2) * Math.sin(lonRadians/2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+        var d = R * c;
+        return d;
+    }
+
+    function toRadians(val){
+        var PI = 3.1415926535;
+        return val / 180.0 * PI;
+    }
+
+    setInterval(function () {
+        let prevPos = position;
+        position = Cesium.Cartographic.fromCartesian(ISS.position.getValue(clock.currentTime));
+        //console.log(CalculateDistance(prevPos, position)/5);
+        GetCountryCode(position);
+    }, 5000);
+
+    var clock = new Cesium.Clock({
+        startTime : currentTime,
+        currentTime : currentTime,
+        clockStep : Cesium.ClockStep.SYSTEM_CLOCK
+    });
+
+    // Initialize the Cesium viewer.
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+        /*
+        imageryProvider: new Cesium.TileMapServiceImageryProvider({
+            url: Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII"),
+        }),*/
+        terrainProvider: new Cesium.CesiumTerrainProvider({
+            url: Cesium.IonResource.fromAssetId(1),
+        }),
+        baseLayerPicker: false, geocoder: false, homeButton: false, infoBox: false,
+        navigationHelpButton: false, sceneModePicker: false,
+        clockViewModel: new Cesium.ClockViewModel(clock),      
+    });
+
+    // Make it look better
+    viewer.scene.msaaSamples = 8;
+    viewer.resolutionScale = 2.0;
+    viewer.scene.postProcessStages.fxaa.enabled = true;
+    viewer.scene.globe.enableLighting = true;
+
+    // This causes a bug on android, see: https://github.com/CesiumGS/cesium/issues/7871
+    // viewer.scene.globe.enableLighting = true;
+    // These 2 lines are published by NORAD and allow us to predict where
+    // the ISS is at any given moment. They are regularly updated.
+    // Get the latest from: https://celestrak.com/satcat/tle.php?CATNR=25544. 
+    //ISS (ZARYA)
+    const ISS_TLE = `1 25544U 98067A   22275.03521722  .00046746  00000+0  83199-3 0  9999
+                    2 25544  51.6418 167.2146 0003169 263.1060 229.2717 15.49661688361757`;
+    const satrec = satellite.twoline2satrec(
+      ISS_TLE.split('\n')[0].trim(), 
+      ISS_TLE.split('\n')[1].trim()
+    );
+    // Give SatelliteJS the TLE's and a specific time.
+    // Get back a longitude, latitude, height (km).
+    // We're going to generate a position every 10 seconds from now until 6 seconds from now. 
+    const totalSeconds = 60 * 60 * 60;
+    const timestepInSeconds = 10;
+
+    const positionsOverTime = new Cesium.SampledPositionProperty();
+    for (let i = 0; i < totalSeconds; i+= timestepInSeconds) {
+      const time = Cesium.JulianDate.addSeconds(start, i, new Cesium.JulianDate());
+      const jsDate = Cesium.JulianDate.toDate(time);
+
+      const positionAndVelocity = satellite.propagate(satrec, jsDate);
+      const gmst = satellite.gstime(jsDate);
+      const p   = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+
+      const position = Cesium.Cartesian3.fromRadians(p.longitude, p.latitude, p.height * 1000);
+      positionsOverTime.addSample(time, position);
+    }
+    
+    // Visualize the satellite with a red dot.
+    const ISS = viewer.entities.add({
+        position: positionsOverTime,
+        model : {
+            uri : './Assets/Models/ISS_stationary-open-cupola-system.glb'
+        }     
+    });
+    // Set the camera to follow the satellite 
+    //viewer.flyTo(satellitePoint);
+    viewer.trackedEntity = ISS;    
+
+    var camera = viewer.camera;
+    camera.position = new Cesium.Cartesian3(0.25, 0.0, 0.0);
+    camera.direction = new Cesium.Cartesian3(1.0, 0.0, 0.0);
+    camera.up = new Cesium.Cartesian3(0.0, 0.0, 1.0);
+    camera.right = new Cesium.Cartesian3(0.0, -1.0, 0.0);
+
+    function CupolaView() {
+        Cesium.Camera.prototype.rotateView = function(rotation) {
+            let { heading, pitch, roll } = rotation;
+            heading = this.heading + (heading || 0);
+            pitch = this.pitch + (pitch || 0);
+            roll = this.roll + (roll || 0);
+            const destination = this.position;
+            this.setView({
+                destination,
+                orientation: {
+                    heading,
+                    pitch,
+                    roll
+                }
+            });
+        };
+    }
+
+    const DateTime = luxon.DateTime;
+    var UTC = false;
+    function ToggleDateTime() {        
+        UTC = !UTC;
+        viewer.animation.viewModel.timeFormatter = function(date, viewModel) {
+            const isoString = Cesium.JulianDate.toIso8601(date);
+            let dateTime = DateTime.fromISO(isoString);
+            dateTime = (UTC? dateTime.setZone("local"): dateTime.setZone("utc"));
+            // If you want to set a specific timezone
+            // dateTime = dateTime.setZone("America/Chicago");            
+            return (UTC? dateTime.toLocaleString(DateTime.TIME_24_WITH_SECONDS) + " " + dateTime.toFormat('ZZZZ'): dateTime.toLocaleString(DateTime.TIME_24_WITH_SECONDS) + " UTC");
+        };
+    }
+
+    // Velocity Calculation
+    var position = Cesium.Cartographic.fromCartesian(ISS.position.getValue(clock.currentTime));
+    GetCountryCode(position);
+
+  </script>  
+ </div>
+</body>
+</html>
